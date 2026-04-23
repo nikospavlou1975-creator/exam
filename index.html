@@ -197,48 +197,24 @@
 // ── Config ─────────────────────────────────────────────────────
 const API_URL = 'https://lantec.free.nf/exam/receiver.php';
 
-// ── InfinityFree challenge solver ──────────────────────────────
-// Loads the domain in a hidden iframe to solve the JS challenge cookie
-// before making any fetch() calls
-let _serverReady = false;
-async function ensureServerReady() {
-  if (_serverReady) return true;
-  return new Promise((resolve) => {
-    const iframe = document.createElement('iframe');
-    iframe.style.cssText = 'display:none;width:0;height:0;border:0';
-    iframe.src = 'https://lantec.free.nf/exam/receiver.php?action=status';
-    let done = false;
-    const finish = (ok) => {
-      if (done) return;
-      done = true;
-      document.body.removeChild(iframe);
-      _serverReady = ok;
-      resolve(ok);
-    };
-    iframe.onload = () => setTimeout(() => finish(true), 500);
-    iframe.onerror = () => finish(false);
-    setTimeout(() => finish(false), 8000); // 8s timeout
-    document.body.appendChild(iframe);
-  });
-}
-
-// Wrapper for all API calls — ensures challenge is solved first
+// ── API call wrapper with retry ────────────────────────────────
 async function apiCall(action, options = {}) {
-  await ensureServerReady();
   const url = API_URL + '?action=' + action;
-  const res  = await fetch(url, {
+  const opts = {
     ...options,
     headers: { 'Content-Type': 'application/json', ...(options.headers||{}) },
-  });
-  // If still getting HTML (challenge not solved), try once more
-  const ct = res.headers.get('content-type') || '';
-  if (!ct.includes('application/json')) {
-    _serverReady = false;
-    await ensureServerReady();
-    const res2 = await fetch(url, options);
-    return res2.json();
+  };
+  try {
+    const r  = await fetch(url, opts);
+    const ct = r.headers.get('content-type') || '';
+    if (ct.includes('application/json')) return r.json();
+    // Got HTML — likely InfinityFree challenge or error
+    const txt = await r.text();
+    console.warn('[API] Non-JSON response:', txt.slice(0,100));
+    return { ok: false, error: 'server_html' };
+  } catch(e) {
+    return { ok: false, error: e.message };
   }
-  return res.json();
 }
 
 // ── State ──────────────────────────────────────────────────────
@@ -288,14 +264,30 @@ async function loadExamList() {
   const list = document.getElementById('examList');
   list.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--muted)">⏳ Φόρτωση εξετάσεων...</div>';
   try {
-    const res = await apiCall('web_exam_list');
-    const data = await res.json();
-    if (!data.ok || !data.exams.length) {
+    const data = await apiCall('web_exam_list');
+    if (data.error === 'server_html') {
+      list.innerHTML = `
+        <div style="text-align:center;padding:1.5rem">
+          <div style="font-size:1.5rem;margin-bottom:0.5rem">🔒</div>
+          <div style="font-weight:700;margin-bottom:0.5rem;color:#1a3a6b">Απαιτείται επαλήθευση</div>
+          <p style="font-size:0.85rem;color:#64748b;margin-bottom:1rem">
+            Κάντε κλικ παρακάτω, περιμένετε 3 δευτερόλεπτα<br>και επιστρέψτε σε αυτή τη σελίδα.
+          </p>
+          <a href="https://lantec.free.nf/exam/receiver.php?action=status" target="_blank"
+            style="display:inline-block;padding:0.7rem 1.4rem;background:#1a3a6b;color:#fff;border-radius:8px;text-decoration:none;font-weight:700;margin-bottom:1rem">
+            🔓 Επαλήθευση Server
+          </a><br>
+          <button onclick="loadExamList()" style="padding:0.5rem 1rem;background:#f1f5f9;color:#1a3a6b;border:1px solid #e2e8f0;border-radius:7px;cursor:pointer;font-size:0.85rem;margin-top:0.5rem">
+            ↺ Δοκιμή ξανά
+          </button>
+        </div>`;
+      return;
+    }
+    if (!data.ok || !data.exams || !data.exams.length) {
       list.style.display = 'none';
       document.getElementById('noExams').style.display = '';
       return;
     }
-    // Check which exams student already submitted
     const checks = await Promise.all(data.exams.map(e =>
       apiCall('web_exam_check', {
         method: 'POST',
@@ -310,13 +302,13 @@ async function loadExamList() {
       const certIcons = { ECCE:'🟢', ECPE:'🔵', ALCE:'🟣', LRN:'🟠', TOEIC:'🟡', ABLE:'🔴' };
       const icon = certIcons[exam.cert] || '📝';
       const item = document.createElement('div');
-      item.className = 'exam-item' + (submitted ? '' : '');
+      item.className = 'exam-item';
       item.style.opacity = submitted ? '0.6' : '1';
       item.innerHTML = `
         <div class="exam-icon">${icon}</div>
         <div style="flex:1">
           <div class="exam-name">${exam.displayName || exam.examId}</div>
-          <div class="exam-meta">${exam.cert} ${exam.level} · ${exam.questionCount || '?'} ερωτήσεις · ${exam.duration || '?'} λεπτά</div>
+          <div class="exam-meta">${exam.cert} ${exam.level} · ${exam.totalQuestions || '?'} ερωτήσεις · ${exam.duration || '?'} λεπτά</div>
           ${check.inProgress ? '<div style="font-size:0.72rem;color:var(--warn);margin-top:0.15rem">⚠️ Σε εξέλιξη</div>' : ''}
           ${submitted ? '<div style="font-size:0.72rem;color:var(--pass);margin-top:0.15rem">✅ Υποβλήθηκε</div>' : ''}
         </div>
