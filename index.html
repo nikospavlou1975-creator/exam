@@ -195,8 +195,51 @@
 
 <script>
 // ── Config ─────────────────────────────────────────────────────
-const API_URL = '../receiver.php';
-// R2_BASE_URL not needed — audioPath stores the full URL
+const API_URL = 'https://lantec.free.nf/exam/receiver.php';
+
+// ── InfinityFree challenge solver ──────────────────────────────
+// Loads the domain in a hidden iframe to solve the JS challenge cookie
+// before making any fetch() calls
+let _serverReady = false;
+async function ensureServerReady() {
+  if (_serverReady) return true;
+  return new Promise((resolve) => {
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'display:none;width:0;height:0;border:0';
+    iframe.src = 'https://lantec.free.nf/exam/receiver.php?action=status';
+    let done = false;
+    const finish = (ok) => {
+      if (done) return;
+      done = true;
+      document.body.removeChild(iframe);
+      _serverReady = ok;
+      resolve(ok);
+    };
+    iframe.onload = () => setTimeout(() => finish(true), 500);
+    iframe.onerror = () => finish(false);
+    setTimeout(() => finish(false), 8000); // 8s timeout
+    document.body.appendChild(iframe);
+  });
+}
+
+// Wrapper for all API calls — ensures challenge is solved first
+async function apiCall(action, options = {}) {
+  await ensureServerReady();
+  const url = API_URL + '?action=' + action;
+  const res  = await fetch(url, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...(options.headers||{}) },
+  });
+  // If still getting HTML (challenge not solved), try once more
+  const ct = res.headers.get('content-type') || '';
+  if (!ct.includes('application/json')) {
+    _serverReady = false;
+    await ensureServerReady();
+    const res2 = await fetch(url, options);
+    return res2.json();
+  }
+  return res.json();
+}
 
 // ── State ──────────────────────────────────────────────────────
 let studentName  = '';
@@ -229,6 +272,8 @@ async function goToExamList() {
   studentName = name;
   document.getElementById('welcomeText').textContent = `Γεια σας, ${studentName}!`;
   showScreen('screenExams');
+  // Show loading while solving InfinityFree challenge
+  document.getElementById('examList').innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted)"><div style="font-size:1.5rem;margin-bottom:0.5rem">⏳</div>Σύνδεση με τον server...<br><small style="font-size:0.75rem;opacity:0.7">Πρώτη φόρτωση — παρακαλείστε να περιμένετε</small></div>';
   await loadExamList();
 }
 
@@ -243,7 +288,7 @@ async function loadExamList() {
   const list = document.getElementById('examList');
   list.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--muted)">⏳ Φόρτωση εξετάσεων...</div>';
   try {
-    const res = await fetch(API_URL + '?action=web_exam_list');
+    const res = await apiCall('web_exam_list');
     const data = await res.json();
     if (!data.ok || !data.exams.length) {
       list.style.display = 'none';
@@ -252,11 +297,10 @@ async function loadExamList() {
     }
     // Check which exams student already submitted
     const checks = await Promise.all(data.exams.map(e =>
-      fetch(API_URL + '?action=web_exam_check', {
+      apiCall('web_exam_check', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ studentName, examId: e.examId }),
-      }).then(r => r.json()).catch(() => ({ canTake: true }))
+      }).catch(() => ({ canTake: true }))
     ));
 
     list.innerHTML = '';
@@ -283,7 +327,7 @@ async function loadExamList() {
       list.appendChild(item);
     });
   } catch(e) {
-    list.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--fail)">❌ Σφάλμα σύνδεσης. Δοκιμάστε ξανά.</div>';
+    list.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--fail)">❌ Σφάλμα σύνδεσης.<br><small>Δοκιμάστε να ανανεώσετε τη σελίδα.</small></div>';
   }
 }
 
@@ -300,11 +344,10 @@ async function startExam() {
   if (!selectedExam) return;
   // Start session on server
   try {
-    const res = await fetch(API_URL + '?action=web_exam_start', {
+    const res = await apiCall('web_exam_start', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ studentName, examId: selectedExam.examId }),
-    }).then(r => r.json());
+    });
     if (!res.ok) { showToast('❌ ' + (res.error || 'Σφάλμα')); return; }
     sessionKey = res.sessionKey;
   } catch(e) { showToast('❌ Σφάλμα σύνδεσης'); return; }
@@ -411,9 +454,8 @@ async function sendProgress() {
   const answered = Object.keys(answers).length;
   const total    = examStructure?.totalQuestions || 1;
   const pct      = Math.round((answered / total) * 100);
-  fetch(API_URL + '?action=web_exam_progress', {
+  apiCall('web_exam_progress', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ sessionKey, progress: pct, section: 'exam' }),
   }).catch(() => {});
 }
@@ -436,9 +478,8 @@ async function submitExam() {
   const answerArray = Object.entries(answers).map(([q, a]) => ({ q: parseInt(q), answer: a }));
 
   try {
-    const res = await fetch(API_URL + '?action=web_exam_submit', {
+    const res = await apiCall('web_exam_submit', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         sessionKey,
         studentName,
@@ -448,7 +489,7 @@ async function submitExam() {
         meta:     { cert: selectedExam.cert, level: selectedExam.level, examName: selectedExam.displayName, writingTotal: selectedExam.writingTotal || 0 },
         submittedAt: new Date().toISOString(),
       }),
-    }).then(r => r.json());
+    });
 
     if (res.ok) {
       showScreen('screenSuccess');
