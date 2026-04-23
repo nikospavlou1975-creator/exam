@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Εξετάσεις Online</title>
+<style>
+  :root {
+    --school: #1a3a6b;
+    --accent: #2563eb;
+    --pass:   #16a34a;
+    --fail:   #dc2626;
+    --warn:   #f59e0b;
+    --bg:     #f1f5f9;
+    --card:   #ffffff;
+    --muted:  #64748b;
+    --border: #e2e8f0;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: #1e293b; min-height: 100vh; }
+
+  /* Header */
+  .header { background: var(--school); color: #fff; padding: 1rem 1.5rem; display: flex; align-items: center; gap: 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+  .header-logo { font-size: 1.5rem; }
+  .header-title { font-size: 1rem; font-weight: 800; }
+  .header-sub { font-size: 0.72rem; opacity: 0.7; }
+
+  /* Cards */
+  .card { background: var(--card); border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); padding: 1.5rem; }
+  .container { max-width: 680px; margin: 2rem auto; padding: 0 1rem; }
+
+  /* Buttons */
+  .btn { padding: 0.65rem 1.4rem; border: none; border-radius: 8px; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all 0.15s; }
+  .btn-primary { background: var(--school); color: #fff; }
+  .btn-primary:hover { background: #1e4494; }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-success { background: var(--pass); color: #fff; }
+  .btn-outline { background: transparent; border: 2px solid var(--school); color: var(--school); }
+
+  /* Input */
+  .input { width: 100%; padding: 0.65rem 0.9rem; border: 2px solid var(--border); border-radius: 8px; font-size: 0.95rem; outline: none; transition: border 0.15s; }
+  .input:focus { border-color: var(--accent); }
+  label { font-size: 0.82rem; font-weight: 600; color: var(--muted); display: block; margin-bottom: 0.35rem; }
+
+  /* Exam list */
+  .exam-item { border: 2px solid var(--border); border-radius: 10px; padding: 1rem; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 1rem; }
+  .exam-item:hover { border-color: var(--accent); background: #eff6ff; }
+  .exam-item.selected { border-color: var(--accent); background: #eff6ff; }
+  .exam-icon { font-size: 1.6rem; }
+  .exam-name { font-weight: 700; font-size: 0.95rem; }
+  .exam-meta { font-size: 0.75rem; color: var(--muted); margin-top: 0.15rem; }
+  .exam-badge { font-size: 0.7rem; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 99px; background: var(--school); color: #fff; margin-left: auto; flex-shrink: 0; }
+
+  /* Exam screen */
+  .exam-header { background: var(--school); color: #fff; padding: 0.8rem 1.2rem; border-radius: 10px; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; }
+  .timer-box { background: rgba(255,255,255,0.15); border-radius: 8px; padding: 0.4rem 0.8rem; font-size: 1rem; font-weight: 800; font-family: monospace; }
+  .timer-box.urgent { background: rgba(220,38,38,0.8); animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.7} }
+
+  /* Audio player */
+  .audio-section { background: #f0f9ff; border: 2px solid #bae6fd; border-radius: 10px; padding: 1rem; margin-bottom: 1rem; }
+  audio { width: 100%; margin-top: 0.5rem; }
+
+  /* Questions */
+  .question-block { border: 1px solid var(--border); border-radius: 10px; padding: 1rem; margin-bottom: 0.8rem; transition: border 0.15s; }
+  .question-block.answered { border-color: #86efac; background: #f0fdf4; }
+  .question-num { font-size: 0.75rem; font-weight: 700; color: var(--muted); margin-bottom: 0.4rem; }
+  .question-text { font-size: 0.9rem; margin-bottom: 0.6rem; font-weight: 500; }
+  .options { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+  .option-btn { padding: 0.5rem 0.7rem; border: 2px solid var(--border); border-radius: 7px; background: #fff; cursor: pointer; font-size: 0.82rem; text-align: left; transition: all 0.1s; }
+  .option-btn:hover { border-color: var(--accent); background: #eff6ff; }
+  .option-btn.selected { border-color: var(--accent); background: var(--accent); color: #fff; font-weight: 700; }
+
+  /* Progress bar */
+  .progress-wrap { height: 6px; background: var(--border); border-radius: 99px; margin: 0.8rem 0; overflow: hidden; }
+  .progress-bar { height: 100%; background: var(--accent); border-radius: 99px; transition: width 0.3s; }
+
+  /* Section header */
+  .section-header { background: linear-gradient(135deg, var(--school), #2563eb); color: #fff; border-radius: 10px; padding: 0.8rem 1.2rem; margin: 1rem 0 0.8rem; display: flex; align-items: center; gap: 0.5rem; font-weight: 700; }
+
+  /* Submit overlay */
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 999; padding: 1rem; }
+  .overlay-card { background: #fff; border-radius: 16px; padding: 2rem; max-width: 420px; width: 100%; text-align: center; }
+
+  /* Toast */
+  #toast { position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%); background: #1e293b; color: #fff; padding: 0.7rem 1.4rem; border-radius: 8px; font-size: 0.85rem; z-index: 9999; display: none; }
+
+  /* Responsive */
+  @media (max-width: 480px) {
+    .options { grid-template-columns: 1fr; }
+    .container { padding: 0 0.5rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-logo">🎓</div>
+  <div>
+    <div class="header-title">Κέντρο Ξένων Γλωσσών & Πληροφορικής</div>
+    <div class="header-sub">Νικόλαος Αθ. Παύλου — Online Εξετάσεις</div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- ── SCREEN 1: Name Entry ─────────────────────────────────── -->
+<div id="screenName" class="container">
+  <div class="card" style="margin-top:2rem">
+    <div style="text-align:center;margin-bottom:1.5rem">
+      <div style="font-size:2.5rem;margin-bottom:0.5rem">📝</div>
+      <h2 style="color:var(--school);font-size:1.2rem">Εισαγωγή Ονόματος</h2>
+      <p style="color:var(--muted);font-size:0.85rem;margin-top:0.3rem">Εισάγετε το ονοματεπώνυμό σας για να συνεχίσετε</p>
+    </div>
+    <div style="margin-bottom:1rem">
+      <label>Ονοματεπώνυμο (Κεφαλαία)</label>
+      <input class="input" id="nameInput" type="text" placeholder="π.χ. ΠΑΠΑΔΟΠΟΥΛΟΥ ΜΑΡΙΑ" autocomplete="off"
+        style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
+    </div>
+    <button class="btn btn-primary" style="width:100%" onclick="goToExamList()">Συνέχεια →</button>
+  </div>
+</div>
+
+<!-- ── SCREEN 2: Exam Selection ─────────────────────────────── -->
+<div id="screenExams" class="container" style="display:none">
+  <div style="margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between">
+    <div>
+      <h2 style="color:var(--school);font-size:1.1rem" id="welcomeText">Καλώς ήρθατε!</h2>
+      <p style="color:var(--muted);font-size:0.82rem">Επιλέξτε εξέταση</p>
+    </div>
+    <button class="btn btn-outline" onclick="goBack()" style="font-size:0.8rem;padding:0.4rem 0.8rem">← Πίσω</button>
+  </div>
+  <div id="examList" style="display:grid;gap:0.7rem"></div>
+  <div id="noExams" style="display:none;text-align:center;padding:2rem;color:var(--muted)">
+    <div style="font-size:2rem;margin-bottom:0.5rem">📭</div>
+    <p>Δεν υπάρχουν διαθέσιμες εξετάσεις αυτή τη στιγμή.</p>
+    <p style="font-size:0.8rem;margin-top:0.5rem">Επικοινωνήστε με τον καθηγητή σας.</p>
+  </div>
+  <div id="selectedExamBar" style="display:none;position:sticky;bottom:1rem;margin-top:1rem">
+    <button class="btn btn-primary" id="btnStartExam" style="width:100%;padding:0.8rem;font-size:1rem" onclick="startExam()">
+      🚀 Έναρξη Εξέτασης
+    </button>
+  </div>
+</div>
+
+<!-- ── SCREEN 3: Exam in Progress ───────────────────────────── -->
+<div id="screenExam" style="display:none;max-width:780px;margin:0 auto;padding:0.5rem">
+  <div class="exam-header">
+    <div>
+      <div style="font-size:0.72rem;opacity:0.7" id="examHeaderSub"></div>
+      <div style="font-weight:800;font-size:0.95rem" id="examHeaderTitle"></div>
+    </div>
+    <div style="display:flex;gap:0.5rem;align-items:center">
+      <div style="font-size:0.72rem;opacity:0.7" id="progressText">0 / 0</div>
+      <div class="timer-box" id="timerDisplay">--:--</div>
+    </div>
+  </div>
+  <div class="progress-wrap"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
+  <div id="examContent"></div>
+  <div style="padding:1rem;text-align:center">
+    <button class="btn btn-success" style="font-size:1rem;padding:0.8rem 2rem" onclick="confirmSubmit()">
+      ✅ Υποβολή Εξέτασης
+    </button>
+  </div>
+</div>
+
+<!-- ── SCREEN 4: Success ─────────────────────────────────────── -->
+<div id="screenSuccess" class="container" style="display:none">
+  <div class="card" style="margin-top:2rem;text-align:center">
+    <div style="font-size:3rem;margin-bottom:1rem">🎉</div>
+    <h2 style="color:var(--pass);margin-bottom:0.5rem">Υποβλήθηκε Επιτυχώς!</h2>
+    <p style="color:var(--muted);font-size:0.9rem;margin-bottom:1.5rem">
+      Οι απαντήσεις σας στάλθηκαν στον καθηγητή σας.
+    </p>
+    <div id="successDetails" style="background:#f0fdf4;border-radius:8px;padding:1rem;margin-bottom:1.5rem;font-size:0.85rem;text-align:left"></div>
+    <p style="font-size:0.8rem;color:var(--muted)">Μπορείτε να κλείσετε αυτή τη σελίδα.</p>
+  </div>
+</div>
+
+<!-- Submit Confirm Overlay -->
+<div id="overlayConfirm" class="overlay" style="display:none">
+  <div class="overlay-card">
+    <div style="font-size:2.5rem;margin-bottom:1rem">📤</div>
+    <h3 style="margin-bottom:0.5rem;color:var(--school)">Υποβολή Εξέτασης</h3>
+    <p style="color:var(--muted);font-size:0.88rem;margin-bottom:0.5rem">
+      Έχετε απαντήσει σε <strong id="answeredCount">0</strong> από <strong id="totalCount">0</strong> ερωτήσεις.
+    </p>
+    <p style="color:var(--muted);font-size:0.85rem;margin-bottom:1.5rem">Θέλετε να υποβάλετε; Δεν μπορείτε να κάνετε αλλαγές μετά.</p>
+    <div style="display:flex;gap:0.7rem">
+      <button class="btn btn-outline" style="flex:1" onclick="document.getElementById('overlayConfirm').style.display='none'">Άκυρο</button>
+      <button class="btn btn-success" style="flex:2" onclick="submitExam()">✅ Υποβολή</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Config ─────────────────────────────────────────────────────
+const API_URL = '../receiver.php';
+// R2_BASE_URL not needed — audioPath stores the full URL
+
+// ── State ──────────────────────────────────────────────────────
+let studentName  = '';
+let selectedExam = null;
+let sessionKey   = null;
+let answers      = {};
+let currentTimer = null;
+let timeLeft     = 0;
+let examStructure = null;
+let progressInterval = null;
+
+// ── Screens ────────────────────────────────────────────────────
+function showScreen(id) {
+  ['screenName','screenExams','screenExam','screenSuccess'].forEach(s => {
+    document.getElementById(s).style.display = s === id ? '' : 'none';
+  });
+}
+
+function showToast(msg, duration = 3000) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', duration);
+}
+
+// ── Screen 1: Name ─────────────────────────────────────────────
+async function goToExamList() {
+  const name = document.getElementById('nameInput').value.trim();
+  if (!name || name.length < 3) { showToast('⚠️ Εισάγετε το ονοματεπώνυμό σας'); return; }
+  studentName = name;
+  document.getElementById('welcomeText').textContent = `Γεια σας, ${studentName}!`;
+  showScreen('screenExams');
+  await loadExamList();
+}
+
+function goBack() {
+  selectedExam = null;
+  document.getElementById('selectedExamBar').style.display = 'none';
+  showScreen('screenName');
+}
+
+// ── Screen 2: Exam List ────────────────────────────────────────
+async function loadExamList() {
+  const list = document.getElementById('examList');
+  list.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--muted)">⏳ Φόρτωση εξετάσεων...</div>';
+  try {
+    const res = await fetch(API_URL + '?action=web_exam_list');
+    const data = await res.json();
+    if (!data.ok || !data.exams.length) {
+      list.style.display = 'none';
+      document.getElementById('noExams').style.display = '';
+      return;
+    }
+    // Check which exams student already submitted
+    const checks = await Promise.all(data.exams.map(e =>
+      fetch(API_URL + '?action=web_exam_check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentName, examId: e.examId }),
+      }).then(r => r.json()).catch(() => ({ canTake: true }))
+    ));
+
+    list.innerHTML = '';
+    data.exams.forEach((exam, i) => {
+      const check     = checks[i];
+      const submitted = !check.canTake;
+      const certIcons = { ECCE:'🟢', ECPE:'🔵', ALCE:'🟣', LRN:'🟠', TOEIC:'🟡', ABLE:'🔴' };
+      const icon = certIcons[exam.cert] || '📝';
+      const item = document.createElement('div');
+      item.className = 'exam-item' + (submitted ? '' : '');
+      item.style.opacity = submitted ? '0.6' : '1';
+      item.innerHTML = `
+        <div class="exam-icon">${icon}</div>
+        <div style="flex:1">
+          <div class="exam-name">${exam.displayName || exam.examId}</div>
+          <div class="exam-meta">${exam.cert} ${exam.level} · ${exam.questionCount || '?'} ερωτήσεις · ${exam.duration || '?'} λεπτά</div>
+          ${check.inProgress ? '<div style="font-size:0.72rem;color:var(--warn);margin-top:0.15rem">⚠️ Σε εξέλιξη</div>' : ''}
+          ${submitted ? '<div style="font-size:0.72rem;color:var(--pass);margin-top:0.15rem">✅ Υποβλήθηκε</div>' : ''}
+        </div>
+        <div class="exam-badge">${exam.cert}</div>`;
+      if (!submitted) {
+        item.onclick = () => selectExam(exam, item);
+      }
+      list.appendChild(item);
+    });
+  } catch(e) {
+    list.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--fail)">❌ Σφάλμα σύνδεσης. Δοκιμάστε ξανά.</div>';
+  }
+}
+
+function selectExam(exam, el) {
+  document.querySelectorAll('.exam-item').forEach(i => i.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedExam = exam;
+  document.getElementById('selectedExamBar').style.display = '';
+  document.getElementById('btnStartExam').textContent = `🚀 Έναρξη: ${exam.displayName || exam.examId}`;
+}
+
+// ── Screen 3: Exam ─────────────────────────────────────────────
+async function startExam() {
+  if (!selectedExam) return;
+  // Start session on server
+  try {
+    const res = await fetch(API_URL + '?action=web_exam_start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ studentName, examId: selectedExam.examId }),
+    }).then(r => r.json());
+    if (!res.ok) { showToast('❌ ' + (res.error || 'Σφάλμα')); return; }
+    sessionKey = res.sessionKey;
+  } catch(e) { showToast('❌ Σφάλμα σύνδεσης'); return; }
+
+  showScreen('screenExam');
+  buildExamUI(selectedExam);
+}
+
+function buildExamUI(exam) {
+  document.getElementById('examHeaderTitle').textContent = exam.displayName || exam.examId;
+  document.getElementById('examHeaderSub').textContent   = `${exam.cert} ${exam.level} · ${studentName}`;
+
+  const content = document.getElementById('examContent');
+  content.innerHTML = '';
+  answers = {};
+  examStructure = exam;
+
+  // Build sections
+  const sections = exam.sections || [];
+  sections.forEach(section => {
+    // Section header
+    const sh = document.createElement('div');
+    sh.className = 'section-header';
+    const icons = { listening: '🎧', grammar: '📖', vocabulary: '📚', reading: '📰', writing: '✍️', cloze: '🔤' };
+    sh.innerHTML = `${icons[section.type] || '📝'} ${section.label} (Q${section.from}–Q${section.to})`;
+
+    // Audio player for listening
+    if (section.type === 'listening' && exam.audioPath) {
+      const audio = document.createElement('div');
+      audio.className = 'audio-section';
+      audio.innerHTML = `
+        <div style="font-size:0.82rem;font-weight:600;color:#0369a1;margin-bottom:0.3rem">🎧 Ακούστε προσεκτικά:</div>
+        <audio controls controlsList="nodownload noplaybackrate" id="audioPlayer">
+          <source src="${exam.audioPath}" type="audio/mpeg">
+        </audio>
+        <div style="font-size:0.72rem;color:#64748b;margin-top:0.3rem">Μπορείτε να ακούσετε μόνο μία φορά κατά τη διάρκεια της εξέτασης.</div>`;
+      content.appendChild(sh);
+      content.appendChild(audio);
+    } else {
+      content.appendChild(sh);
+    }
+
+    // Questions
+    for (let q = section.from; q <= section.to; q++) {
+      const block = document.createElement('div');
+      block.className = 'question-block';
+      block.id = `q${q}`;
+      const opts = exam.questionOptions?.[q] || ['A','B','C','D'];
+      block.innerHTML = `
+        <div class="question-num">Ερώτηση ${q}</div>
+        <div class="options">
+          ${opts.map((opt, i) => `
+            <button class="option-btn" onclick="selectAnswer(${q}, '${opt}', this)">
+              <strong>${opt}.</strong> ${exam.questionTexts?.[q]?.[i] || ''}
+            </button>`).join('')}
+        </div>`;
+      content.appendChild(block);
+    }
+  });
+
+  // Start timer
+  const totalSeconds = (exam.duration || 60) * 60;
+  startTimer(totalSeconds, exam.totalQuestions || 0);
+
+  // Progress updates every 30s
+  progressInterval = setInterval(() => sendProgress(), 30000);
+
+  updateProgress();
+}
+
+function selectAnswer(q, answer, btn) {
+  answers[q] = answer;
+  const block = document.getElementById(`q${q}`);
+  block.classList.add('answered');
+  block.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  updateProgress();
+}
+
+function updateProgress() {
+  const total    = examStructure?.totalQuestions || 0;
+  const answered = Object.keys(answers).length;
+  const pct      = total ? Math.round((answered / total) * 100) : 0;
+  document.getElementById('progressBar').style.width = pct + '%';
+  document.getElementById('progressText').textContent = `${answered} / ${total}`;
+}
+
+function startTimer(seconds, totalQ) {
+  timeLeft = seconds;
+  if (currentTimer) clearInterval(currentTimer);
+  currentTimer = setInterval(() => {
+    timeLeft--;
+    const m = Math.floor(timeLeft / 60).toString().padStart(2,'0');
+    const s = (timeLeft % 60).toString().padStart(2,'0');
+    const disp = document.getElementById('timerDisplay');
+    disp.textContent = `${m}:${s}`;
+    disp.className = 'timer-box' + (timeLeft < 300 ? ' urgent' : '');
+    if (timeLeft <= 0) { clearInterval(currentTimer); submitExam(); }
+  }, 1000);
+}
+
+async function sendProgress() {
+  if (!sessionKey) return;
+  const answered = Object.keys(answers).length;
+  const total    = examStructure?.totalQuestions || 1;
+  const pct      = Math.round((answered / total) * 100);
+  fetch(API_URL + '?action=web_exam_progress', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sessionKey, progress: pct, section: 'exam' }),
+  }).catch(() => {});
+}
+
+function confirmSubmit() {
+  const total    = examStructure?.totalQuestions || 0;
+  const answered = Object.keys(answers).length;
+  document.getElementById('answeredCount').textContent = answered;
+  document.getElementById('totalCount').textContent    = total;
+  document.getElementById('overlayConfirm').style.display = 'flex';
+}
+
+async function submitExam() {
+  document.getElementById('overlayConfirm').style.display = 'none';
+  if (currentTimer)    clearInterval(currentTimer);
+  if (progressInterval) clearInterval(progressInterval);
+
+  showToast('⏳ Αποστολή απαντήσεων...');
+
+  const answerArray = Object.entries(answers).map(([q, a]) => ({ q: parseInt(q), answer: a }));
+
+  try {
+    const res = await fetch(API_URL + '?action=web_exam_submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionKey,
+        studentName,
+        examId:   selectedExam.examId,
+        answers:  answerArray,
+        cert:     selectedExam.cert,
+        meta:     { cert: selectedExam.cert, level: selectedExam.level, examName: selectedExam.displayName, writingTotal: selectedExam.writingTotal || 0 },
+        submittedAt: new Date().toISOString(),
+      }),
+    }).then(r => r.json());
+
+    if (res.ok) {
+      showScreen('screenSuccess');
+      document.getElementById('successDetails').innerHTML = `
+        <div style="margin-bottom:0.4rem"><strong>Μαθητής:</strong> ${studentName}</div>
+        <div style="margin-bottom:0.4rem"><strong>Εξέταση:</strong> ${selectedExam.displayName || selectedExam.examId}</div>
+        <div style="margin-bottom:0.4rem"><strong>Απαντήσεις:</strong> ${answerArray.length} / ${selectedExam.totalQuestions}</div>
+        <div><strong>Ώρα:</strong> ${new Date().toLocaleString('el-GR')}</div>`;
+    } else {
+      showToast('❌ Σφάλμα αποστολής: ' + (res.error || 'Δοκιμάστε ξανά'), 5000);
+    }
+  } catch(e) {
+    showToast('❌ Σφάλμα δικτύου. Δοκιμάστε ξανά.', 5000);
+  }
+}
+
+// Enter key on name input
+document.getElementById('nameInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') goToExamList();
+});
+</script>
+</body>
+</html>
